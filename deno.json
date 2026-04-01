@@ -1,0 +1,15 @@
+{
+  "name": "@ptouch/cli",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./mod.ts",
+    "./cli": "./cli.ts"
+  },
+  "tasks": {
+    "print": "deno run --allow-all cli.ts",
+    "status": "deno run --allow-all cli.ts status",
+    "fonts": "deno run --allow-all cli.ts fonts",
+    "models": "deno run --allow-all cli.ts models",
+    "install": "deno install --allow-all --global --name ptouch cli.ts"
+  }
+}
