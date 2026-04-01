@@ -1,10 +1,12 @@
 {
-  "name": "@ptouch/cli",
+  "name": "@capogreco/ptouch",
   "version": "0.1.0",
+  "license": "MIT",
   "exports": {
     ".": "./mod.ts",
     "./cli": "./cli.ts"
   },
+  "exclude": [".claude/"],
   "tasks": {
     "print": "deno run --allow-all cli.ts",
     "status": "deno run --allow-all cli.ts status",
