@@ -85,8 +85,23 @@ export async function queryStatus(devicePath: string): Promise<PrinterStatus> {
 
   try {
     await dev.write(buildStatusRequest());
+
     const buf = new Uint8Array(32);
-    await dev.read(buf);
+    let offset = 0;
+    const deadline = Date.now() + 5000;
+
+    while (offset < 32) {
+      if (Date.now() > deadline) {
+        throw new Error("timeout waiting for printer status response");
+      }
+      const n = await dev.read(buf.subarray(offset));
+      if (n === null || n === 0) {
+        await new Promise((r) => setTimeout(r, 100));
+        continue;
+      }
+      offset += n;
+    }
+
     return parseStatus(buf);
   } finally {
     dev.close();

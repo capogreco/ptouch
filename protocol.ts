@@ -2,7 +2,7 @@
 // Reference: Brother Raster Command Reference for PT-E550W/P750W/P710BT
 
 import type { PtouchModel } from "./models.ts";
-import { tapePixels } from "./models.ts";
+import { tapeLeftMargin, tapePixels } from "./models.ts";
 
 export interface PrintOptions {
   /** Tape width in mm (from printer status) */
@@ -39,8 +39,9 @@ export function buildPrintData(
 ): Uint8Array {
   const o = { ...DEFAULTS, ...opts };
   const tapePx = tapePixels(model, o.tapeWidthMm);
+  const leftMargin = tapeLeftMargin(model, o.tapeWidthMm);
 
-  if (tapePx === undefined) {
+  if (tapePx === undefined || leftMargin === undefined) {
     throw new Error(
       `Unsupported tape width ${o.tapeWidthMm}mm for ${model.name}`,
     );
@@ -48,12 +49,23 @@ export function buildPrintData(
 
   const textHeight = pixels.length;
   const textWidth = pixels[0]?.length ?? 0;
-  const { rasterBytes } = model;
+  const { rasterBytes, headPins } = model;
 
-  // centre text vertically on tape
-  const yOffset = Math.floor((tapePx - textHeight) / 2);
+  // Centre text vertically within the printable area, then offset
+  // by the left margin to position it on the correct physical pins.
+  //
+  // Pin numbering (from Brother Raster Command Reference):
+  //   Pin 0 is at the last-byte end ("left margin" side).
+  //   The first byte of raster data corresponds to the highest pins
+  //   ("right margin" side).
+  //
+  // For 9mm tape on a 128-pin head:
+  //   left margin = 39 pins (pin 0-38), print area = 50 pins (pin 39-88),
+  //   right margin = 39 pins (pin 89-127).
+  const yOffset = leftMargin + Math.floor((tapePx - textHeight) / 2);
 
-  const numLines = textWidth + o.padding;
+  const scaledPadding = Math.round(o.padding * (o.tapeWidthMm / 24));
+  const numLines = textWidth + scaledPadding;
   const parts: Uint8Array[] = [];
 
   // invalidate
@@ -100,9 +112,14 @@ export function buildPrintData(
 
     for (let y = 0; y < textHeight; y++) {
       if (x < textWidth && pixels[y][x]) {
-        const pin = yOffset + y;
-        const byteIdx = Math.floor(pin / 8);
-        const bitIdx = 7 - (pin % 8);
+        const pin = yOffset + (textHeight - 1 - y);
+        // Brother raster byte order: byte 0 = highest pins, byte 15 = pin 0.
+        // Within each byte, MSB = higher pin number, LSB = lower pin number.
+        // So pin N maps to:
+        //   byteIdx = (maxPin - N) / 8  (byte 0 has pins 127..120)
+        //   bitIdx  = N % 8             (bit 0 = lowest pin in that byte)
+        const byteIdx = Math.floor((headPins - 1 - pin) / 8);
+        const bitIdx = pin % 8;
         if (byteIdx >= 0 && byteIdx < rasterBytes) {
           line[byteIdx] |= 1 << bitIdx;
         }

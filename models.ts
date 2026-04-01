@@ -26,13 +26,29 @@ export interface PtouchModel {
   };
 }
 
-/** Map of tape width (mm) to printable pixel count for 128-pin (24mm max) heads */
+/** Map of tape width (mm) to printable pixel count for 128-pin (24mm max) heads.
+ *  Values from Brother Raster Command Reference (PT-E550W/P750W/P710BT v1.02),
+ *  section 2.3.5 "Raster line", TZe tape table. */
 export const TAPE_PIXELS_128: Record<number, number> = {
+  3.5: 24,
   6: 32,
-  9: 52,
-  12: 76,
-  18: 106,
+  9: 50,
+  12: 70,
+  18: 112,
   24: 128,
+};
+
+/** Map of tape width (mm) to left-margin pin count for 128-pin heads.
+ *  The left margin is on the pin-0 (last-byte) side of the raster line.
+ *  Print area starts at pin (leftMargin) and extends for tapePx pins.
+ *  Source: Brother Raster Command Reference, section 2.3.5. */
+export const TAPE_LEFT_MARGIN_128: Record<number, number> = {
+  3.5: 52,
+  6: 48,
+  9: 39,
+  12: 29,
+  18: 8,
+  24: 0,
 };
 
 /** Map of tape width (mm) to printable pixel count for 256-pin (36mm max) heads */
@@ -45,6 +61,16 @@ export const TAPE_PIXELS_256: Record<number, number> = {
 export function tapePixels(model: PtouchModel, tapeWidthMm: number): number | undefined {
   const map = model.headPins <= 128 ? TAPE_PIXELS_128 : TAPE_PIXELS_256;
   return map[tapeWidthMm];
+}
+
+/** Get the left-margin pin offset for a tape width on a given model.
+ *  The left margin is the number of unused pins on the pin-0 (last-byte) side. */
+export function tapeLeftMargin(model: PtouchModel, tapeWidthMm: number): number | undefined {
+  if (model.headPins <= 128) {
+    return TAPE_LEFT_MARGIN_128[tapeWidthMm];
+  }
+  // For 256-pin heads, margins would need to be defined separately
+  return undefined;
 }
 
 /**
