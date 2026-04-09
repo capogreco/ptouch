@@ -13,8 +13,33 @@ import { supportedModels, tapePixels, TAPE_PIXELS_128 } from "./models.ts";
 import { pickFont } from "./picker.ts";
 import { buildPrintData, hasError } from "./protocol.ts";
 import { listFonts, renderText } from "./render.ts";
+import { join } from "jsr:@std/path@1/join";
 
 const VERSION = "0.1.0";
+
+function stateFilePath(): string {
+  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+  return join(home, ".config", "ptouch", "state.json");
+}
+
+function loadLastFont(): string | undefined {
+  try {
+    const data = JSON.parse(Deno.readTextFileSync(stateFilePath()));
+    return data.lastFont;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveLastFont(font: string): void {
+  try {
+    const path = stateFilePath();
+    Deno.mkdirSync(join(path, ".."), { recursive: true });
+    Deno.writeTextFileSync(path, JSON.stringify({ lastFont: font }) + "\n");
+  } catch {
+    // non-critical, ignore
+  }
+}
 
 const HELP = `
   ptouch - Brother P-touch label printer CLI
@@ -135,7 +160,8 @@ async function cmdPick(
   }
 
   const text = previewText ?? "Hello";
-  const result = await pickFont(fonts, text, tapePx);
+  const lastFont = loadLastFont();
+  const result = await pickFont(fonts, text, tapePx, lastFont);
 
   if (result.cancelled) {
     console.log(c.dim("  cancelled"));
@@ -143,18 +169,19 @@ async function cmdPick(
   }
 
   console.log(`\n  selected: ${c.cyan(result.font)}`);
+  saveLastFont(result.font);
 
   // prompt to print
-  const answer = prompt(c.bold("  print this label? (y/n)"));
-  if (answer?.toLowerCase() === "y") {
+  const answer = prompt(c.bold("  print this label? (Y/n)"));
+  if (answer === null || answer.toLowerCase() === "n") {
+    console.log(c.dim(`  use with: ptouch -f "${result.font}" "${text}"`));
+  } else {
     await cmdPrint(text, {
       font: result.font,
       tape: opts.tape,
       device: opts.device,
       preview: false,
     });
-  } else {
-    console.log(c.dim(`  use with: ptouch -f "${result.font}" "${text}"`));
   }
 }
 

@@ -28,6 +28,7 @@ export async function pickFont(
   fonts: string[],
   previewText: string,
   tapePx: number,
+  initialFont?: string,
 ): Promise<PickerResult> {
   const encoder = new TextEncoder();
   const write = (s: string) => Deno.stdout.writeSync(encoder.encode(s));
@@ -36,7 +37,8 @@ export async function pickFont(
   const { columns = 80, rows: termRows = 24 } = Deno.consoleSize();
 
   let query = "";
-  let cursor = 0;
+  const initialIndex = initialFont ? fonts.indexOf(initialFont) : -1;
+  let cursor = initialIndex >= 0 ? initialIndex : 0;
   let scroll = 0;
   let filtered = fonts;
   let previewLines: string[] = [];
@@ -127,6 +129,10 @@ export async function pickFont(
 
   try {
     filter();
+    if (initialIndex >= 0) {
+      cursor = initialIndex;
+      previewDirty = true;
+    }
     await updatePreview();
     draw();
 
